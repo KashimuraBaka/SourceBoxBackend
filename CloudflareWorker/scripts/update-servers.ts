@@ -14,13 +14,10 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { aggregateServers, createSources } from '../src/servers/aggregate';
-import type { NormalizedServer } from '../src/servers/types';
+import { ServerAggregator } from '../src/servers/aggregate';
+import { ServerSourceRegistry } from '../src/servers/sources';
+import type { NormalizedServer, RawServersJson, RepoRef } from '../src/types';
 
-interface RawServersJson {
-  update_time?: number;
-  data?: Record<string, Array<{ mode?: string; ip?: string }>>;
-}
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const serversPath = resolve(scriptDir, '..', '..', 'Servers.json');
@@ -43,12 +40,6 @@ function signature(data: Record<string, NormalizedServer[]>): string {
     .sort()
     .map((community) => `${community}:${data[community]!.map((s) => `${s.mode}@${s.ip}`).sort().join(',')}`)
     .join('|');
-}
-
-interface RepoRef {
-  owner: string;
-  repo: string;
-  branch: string;
 }
 
 /** 按顺序检测 token（GITHUB_TOKEN 优先，与 Worker 变量同名），返回 [变量名, 值]。 */
@@ -129,7 +120,7 @@ async function main(): Promise<void> {
   const raw = JSON.parse(await readFile(serversPath, 'utf8')) as RawServersJson;
   const baseline = normalize(raw);
 
-  const { servers, sources } = await aggregateServers(createSources(), baseline);
+  const { servers, sources } = await new ServerAggregator(ServerSourceRegistry.create()).collect(baseline);
 
   for (const [community, list] of Object.entries(servers.data)) {
     console.log(`${community.padEnd(8)} ${String(list.length).padStart(3)} 台`);
