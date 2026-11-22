@@ -11,6 +11,7 @@
  */
 
 import { aggregateServers, createSources } from './servers/aggregate';
+import { fetchBaseline } from './servers/baseline';
 
 interface Env {
   GITHUB_OWNER: string;
@@ -179,10 +180,25 @@ async function serveServers(request: Request, env: Env, ctx: ExecutionContext): 
     return finalize(request, cached, '/servers', cacheSeconds, 'cache', clientMaxAge);
   }
 
-  const { servers, sources } = await aggregateServers(createSources(env.FYS_UPSTREAM_URL));
+  // 以仓库 Servers.json 为基线：抓到的社区整组替换，抓不到/未覆盖的社区保留基线条目。
+  const errors: Array<{ name: string; error: string }> = [];
+  let baseline: Awaited<ReturnType<typeof fetchBaseline>>['servers'] = {};
 
-  // 只在有源抓取失败时才输出 sources：全部成功时不额外占字节。
-  const payload = sources.length > 0 ? { ...servers, sources } : servers;
+  try {
+    const loaded = await fetchBaseline(env.GITHUB_OWNER, env.GITHUB_REPO, env.GITHUB_BRANCH, AbortSignal.timeout(8000));
+    baseline = loaded.servers;
+  } catch (error) {
+    errors.push({
+      name: 'Servers.json',
+      error: error instanceof Error ? error.message.slice(0, 200) : String(error).slice(0, 200),
+    });
+  }
+
+  const { servers, sources } = await aggregateServers(createSources(env.FYS_UPSTREAM_URL), baseline);
+  const failures = [...errors, ...sources];
+
+  // 只在有失败时才输出 sources：全部成功时不额外占字节。
+  const payload = failures.length > 0 ? { ...servers, sources: failures } : servers;
   const body = JSON.stringify(payload, null, 2);
 
   const response = new Response(body, {

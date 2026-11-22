@@ -78,12 +78,14 @@ CloudflareWorker/
 归一规则：
 
 - `update_time`：抓取时刻（epoch 秒）。
-- `data`：按社区名分组（`僵尸乐园` / `EXG` / `风云社`），每项只有 `mode` + `ip`，与 `Servers.json` 完全一致。
+- `data`：**以仓库 `Servers.json` 为基线**——活源抓到的社区整组替换，活源失败或没有活源的社区（`X社区`、`国外社区`）保留基线条目；
+  每项只有 `mode` + `ip`，与 `Servers.json` 完全一致。社区键对齐基线：`僵尸乐园` / `EXG` / `MOEUB` / `风云社` / `X社区` / `国外社区`。
 - `mode` 由服务器名优先、其次分组名/地图关键词推断：`ze / mg / kz / surf / bhop / hns / ttt / jail / afk / ar`，
   社区前缀（`【僵尸乐园】` 等）会先被剥掉，避免整组误判成 `ze`。
 - 同一源内按 `ip` 去重，按 `mode`、`ip` 排序。
 - 每个上游独立 9 秒超时，失败只影响自己那一组，不影响整体返回。
 - UB 社区走 WebSocket：连上后逐条推 `server/init`，采集到「最后一条后再静默 800ms」或「5s 硬上限」即关闭；心跳/update 不重置静默计时。
+- 基线抓取失败时只返回活数据，并把 `Servers.json` 记为一条失败；单个活源失败时该社区回落到基线。
 - **`sources` 只在有上游抓取失败时出现**，内容只含失败项（`{ name, error }`）；全部成功时该字段完全不输出，不占字节。
 - 结果整体缓存 **1 小时**（`SERVERS_CACHE_SECONDS`，默认 `3600`，`s-maxage` 生效），客户端 `max-age=300`；
   调试可用 `/servers?fresh=1` 强制回源。三个社区站点因此不会被频繁抓取。
@@ -110,6 +112,24 @@ CloudflareWorker/
   "sources": [ { "name": "fyscs.cn", "error": "HTTP 200 text/html 非 JSON: <script src=\"/_guard/html.js?...\" />" } ]
 }
 ```
+### Servers.json 自动同步
+
+`npm run sync:servers`（`scripts/update-servers.ts`）把四个活源的结果写回仓库根目录的 `Servers.json`：
+
+1. 读现有 `Servers.json` 作基线；
+2. 抓四个社区（僵尸乐园 / EXG / 风雲社 / MOEUB）；
+3. 抓到的社区整组替换，抓不到或没有活源的社区（X社区 / 国外社区）保留基线条目；
+4. 只有内容（忽略 `update_time`）变化时才写回，`update_time` 取当前秒级时间戳。
+
+自动化：`.github/workflows/update-servers.yml` 每小时 17 分执行（也支持手动 `workflow_dispatch`），
+有变化时以 `github-actions[bot]` 提交并推送，提交信息为 `chore(servers): 自动同步四社区服务器列表`。
+
+本地手动同步：
+
+```bash
+cd CloudflareWorker
+npm run sync:servers
+```
 ## 本地开发与测试
 
 ```bash
@@ -135,7 +155,8 @@ npm run dev           # http://127.0.0.1:51789
 | `POST /Servers.json` | `405` |
 | `HEAD /Servers.json` | `200`，无 body、带 `ETag` |
 | `GET /Servers.json` + `If-None-Match` | `304` |
-| `GET /servers` | `200`，僵尸乐园 18 + EXG 18 + 风云社 16 + UB 社区 45 = **97 台**；全部成功时无 `sources` 字段 |
+| `GET /servers` | `200`，六个社区合计 **116 台**（僵尸乐园 18 / EXG 19 / MOEUB 45 / 风云社 16 来自活源，X社区 6 / 国外社区 12 来自基线）；全部成功时无 `sources` 字段 |
+| 单源失败回落 | 临时把 `FYS_UPSTREAM_URL` 指向不可达地址：`sources` 只列 `fyscs.cn`，`风云社` 自动回落到基线 20 台，其它社区不受影响 |
 | `GET /servers?fresh=1` | `200`，绕过缓存重新抓取（实测 ~1.0 s，四源并行，含 WebSocket 采集）；响应头 `s-maxage=3600` |
 | `GET /servers`（第二次） | `200`，`X-SourceBox-Source: cache`，5 ms，不再打上游 |
 | 模式归一 | 僵尸乐园 `ze5 / mg2 / kz3 / surf2 / bhop2 / ar3 / afk1`；EXG `ze10 / surf2 / mg1 / hns2 / afk3` |

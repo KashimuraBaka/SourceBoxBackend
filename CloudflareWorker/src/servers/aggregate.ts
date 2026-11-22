@@ -1,6 +1,7 @@
 import { createFyscsSource } from './fyscs';
 import { darkrpSource } from './darkrp';
 import { moeubSource } from './moeub';
+import type { Baseline } from './baseline';
 import type { AggregateResult, NormalizedServer, SourceAdapter, SourceError } from './types';
 import { zombiedenSource } from './zombieden';
 
@@ -34,9 +35,19 @@ async function runSource(source: SourceAdapter): Promise<{ servers: NormalizedSe
  * 并行抓取所有上游，按社区分组、去重、排序，产出 Servers.json 结构。
  * 只有失败的上游才会进 `sources`（成功不占字节）。
  */
-export async function aggregateServers(sources: SourceAdapter[]): Promise<AggregateResult> {
+export async function aggregateServers(
+  sources: SourceAdapter[],
+  baseline: Baseline['servers'] = {},
+): Promise<AggregateResult> {
   const results = await Promise.all(sources.map(runSource));
+
+  // 以 Servers.json 为底：活源抓到的社区整组替换，未覆盖或失败的社区保留基线。
   const data: Record<string, NormalizedServer[]> = {};
+
+  for (const [community, servers] of Object.entries(baseline)) {
+    data[community] = servers.map((server) => ({ ...server }));
+  }
+
   const errors: SourceError[] = [];
 
   for (const [index, result] of results.entries()) {

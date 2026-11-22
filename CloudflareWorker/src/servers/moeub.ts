@@ -34,23 +34,45 @@ interface MoeubMessage {
   data?: MoeubServer;
 }
 
+/** Workers 与 Node 的唯一差异：如何拿到 WebSocket 句柄。 */
+interface SocketLike {
+  close(): void;
+  addEventListener(type: string, listener: (event: MessageEvent) => void): void;
+}
+
+async function connect(signal: AbortSignal): Promise<SocketLike | null> {
+  // 1) Cloudflare Workers：fetch + Upgrade，然后 accept
+  try {
+    const response = await fetch(ENDPOINT, { headers: { Upgrade: 'websocket' }, signal });
+    const socket = (response as unknown as { webSocket?: { accept(): void } & SocketLike }).webSocket;
+
+    if (socket) {
+      socket.accept();
+      return socket;
+    }
+  } catch {
+    // 落到 Node 分支
+  }
+
+  // 2) Node（本地 sync 脚本 / CI）：标准 WebSocket
+  const ctor = (globalThis as unknown as { WebSocket?: new (url: string) => SocketLike }).WebSocket;
+
+  if (!ctor) {
+    return null;
+  }
+
+  return new ctor(ENDPOINT);
+}
 export const moeubSource: SourceAdapter = {
   name: 'csgo.moeub.cn',
-  community: 'UB社区',
+  community: 'MOEUB',
 
   async fetchServers(signal: AbortSignal): Promise<NormalizedServer[]> {
-    const response = await fetch(ENDPOINT, {
-      headers: { Upgrade: 'websocket' },
-      signal,
-    });
-
-    const socket = response.webSocket;
+    const socket = await connect(signal);
 
     if (!socket) {
-      throw new Error(`WebSocket 握手失败：HTTP ${response.status}`);
+      throw new Error('WebSocket 不可用');
     }
-
-    socket.accept();
 
     const servers = new Map<number, NormalizedServer>();
 
