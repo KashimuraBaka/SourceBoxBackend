@@ -2,6 +2,9 @@ import type { AggregateResult, Baseline, NormalizedServer, ServerSource, SourceE
 
 /** 多个社区数据源的聚合器：并行抓取 → 基线打底 → 整组替换 → 去重排序。 */
 export class ServerAggregator {
+  /** 列表排序的玩法优先级：挂机服 → ze → mg 闯关 → mg 混战 → surf → kz → bhop → 其他。 */
+  private static readonly MODE_ORDER = ['afk', 'ze', 'mg', 'ar', 'surf', 'kz', 'bhop'];
+
   /** 单个上游的硬超时（毫秒），避免某个站点拖垮整个接口。 */
   private static readonly TIMEOUT_MS = 9000;
 
@@ -47,7 +50,7 @@ export class ServerAggregator {
         servers.push(server);
       }
 
-      servers.sort((a, b) => (a.mode === b.mode ? a.ip.localeCompare(b.ip) : a.mode.localeCompare(b.mode)));
+      servers.sort((a, b) => ServerAggregator.rank(a.mode) - ServerAggregator.rank(b.mode) || a.ip.localeCompare(b.ip));
 
       data[source.community] = servers;
     }
@@ -56,6 +59,13 @@ export class ServerAggregator {
       servers: { update_time: Math.floor(Date.now() / 1000), data },
       sources: errors,
     };
+  }
+
+  /** 玩法排序权重；未列出的玩法（zm / hns / ttt / jail / de / cs2 …）统一排在最后。 */
+  private static rank(mode: string): number {
+    const index = ServerAggregator.MODE_ORDER.indexOf(mode);
+
+    return index < 0 ? ServerAggregator.MODE_ORDER.length : index;
   }
 
   /** 统一两段式：取原始载荷 → 纯解析；任何一步失败只影响该源。 */
