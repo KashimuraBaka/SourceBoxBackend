@@ -29,19 +29,10 @@ jobs:
         working-directory: CloudflareWorker
         run: npm ci --no-audit --no-fund
 
+      # 脚本自己检测 token（SERVERS_GITHUB_TOKEN / GITHUB_TOKEN / GH_TOKEN），
+      # 有就通过 GitHub Contents API 提交，没有就只写工作区；不依赖 git 凭据或 SSH key。
       - name: Sync Servers.json
         working-directory: CloudflareWorker
+        env:
+          SERVERS_GITHUB_TOKEN: ${{ github.token }}
         run: npm run sync:servers
-
-      - name: Commit and push
-        run: |
-          if git diff --quiet -- Servers.json; then
-            echo "Servers.json 无变化，跳过提交"
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Servers.json
-          git commit -m "chore(servers): 自动同步四社区服务器列表"
-          git push
