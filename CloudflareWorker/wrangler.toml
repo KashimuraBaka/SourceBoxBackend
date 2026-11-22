@@ -1,0 +1,29 @@
+name = "sourceboxapi"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+workers_dev = true
+
+# 面板里的项目名就是 name（sourceboxapi），部署后默认域名 <name>.<account>.workers.dev
+# 自定义域名 resource.sourcebox.kashimura.cn 在 Dashboard → Triggers → Custom Domains 绑定，
+# 或者解除下面注释改用 Route（需要该域名已在同一账号下托管）：
+# routes = [
+#   { pattern = "resource.sourcebox.kashimura.cn/*", zone_name = "kashimura.cn" }
+# ]
+
+[vars]
+GITHUB_OWNER = "KashimuraBaka"
+GITHUB_REPO = "SourceBoxBackend"
+GITHUB_BRANCH = "main"
+# 上游数据缓存秒数（客户端另有 max-age）
+CACHE_SECONDS = "300"
+# /servers 聚合结果的缓存时长：为避免频繁抓取三个社区站点，默认缓存 1 小时。
+SERVERS_CACHE_SECONDS = "3600"
+
+# 风雲社默认走 silverwing/system/dashboard（需 X-Client + 浏览器 UA）；需要换上游时填这里。
+# FYS_UPSTREAM_URL = "https://example.com/servers.json"
+
+# 可选：GitHub 私有仓库 / 提高速率限制时，用 `wrangler secret put GITHUB_TOKEN` 设置。
+# GITHUB_TOKEN = ""
+
+[observability]
+enabled = true

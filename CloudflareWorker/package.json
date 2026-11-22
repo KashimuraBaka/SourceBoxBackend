@@ -1,0 +1,20 @@
+{
+  "name": "sourceboxapi",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SourceBox 后端 Worker：为客户端提供服务器列表、发布日志与创意工坊发布模板",
+  "scripts": {
+    "dev": "wrangler dev --ip 127.0.0.1 --port 51789",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler preview",
+    "preview:upload": "wrangler versions upload",
+    "typecheck": "tsc --noEmit",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "typescript": "^5.7.3",
+    "wrangler": "^3.101.0"
+  }
+}
