@@ -18,6 +18,8 @@ import type { Env, NormalizedServers, SourceError } from './types';
 
 class WorkerApp {
   private static readonly SERVICE_NAME = 'sourceboxapi';
+  /** 静态代理的出网超时，避免上游悬挂把请求拖到平台上限。 */
+  private static readonly UPSTREAM_TIMEOUT_MS = 8000;
   private static readonly TEMPLATE_PATH = /^\/WorkshopPublishTemplate\/(\d{1,10})\.json$/;
   private static readonly CORS_HEADERS: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
@@ -55,16 +57,8 @@ class WorkerApp {
     }
 
     if (url.pathname === '/' || url.pathname === '') {
-      return WorkerApp.json({
-        service: WorkerApp.SERVICE_NAME,
-        endpoints: [
-          'GET /Servers.json',
-          'GET /ReleaseNotes.md',
-          'GET /WorkshopPublishTemplate/{appId}.json',
-          'GET /servers  聚合各社区服务器列表（Servers.json 结构）',
-          'GET /health',
-        ],
-      });
+      // 不枚举路由：根路径只回服务名，避免把可用端点暴露出去。
+      return WorkerApp.json({ service: WorkerApp.SERVICE_NAME });
     }
 
     if (url.pathname === '/Servers.json') {
@@ -119,7 +113,11 @@ class WorkerApp {
     let response: Response;
 
     try {
-      response = await fetch(upstream, { headers, cf: { cacheTtl: 60 } } as RequestInit);
+      response = await fetch(upstream, {
+        headers,
+        cf: { cacheTtl: 60 },
+        signal: AbortSignal.timeout(WorkerApp.UPSTREAM_TIMEOUT_MS),
+      } as RequestInit);
     } catch (error) {
       console.error('upstream fetch failed', path, error);
       return WorkerApp.json({ error: 'upstream_unreachable', path }, 502);
