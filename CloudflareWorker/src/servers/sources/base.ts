@@ -13,4 +13,19 @@ export abstract class ServerSourceBase implements ServerSource {
 
   /** 解析原始载荷；结构不符或为空时抛错，由聚合层记录到 sources。 */
   abstract parse(raw: unknown): NormalizedServer[];
+
+  /**
+   * 读响应正文；非 2xx 时抛出带状态、Content-Type 与正文片段的错误，
+   * 便于识别 WAF 的自定义码（如 456）与挑战页，而不是只留一个数字。
+   */
+  protected async readText(response: Response): Promise<string> {
+    const text = await response.text();
+
+    if (!response.ok) {
+      const contentType = response.headers.get('Content-Type') ?? '?';
+      throw new Error(`HTTP ${response.status} ${contentType} <- ${text.replace(/\s+/g, ' ').slice(0, 160)}`);
+    }
+
+    return text;
+  }
 }

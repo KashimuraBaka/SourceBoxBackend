@@ -27,11 +27,7 @@ export class DarkrpSource extends ServerSourceBase {
       signal,
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    return await response.text();
+    return await this.readText(response);
   }
 
   parse(raw: unknown): NormalizedServer[] {

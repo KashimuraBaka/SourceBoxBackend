@@ -19,7 +19,9 @@ export class BaselineLoader {
     } as RequestInit);
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      const body = await response.text();
+      const contentType = response.headers.get('Content-Type') ?? '?';
+      throw new Error(`HTTP ${response.status} ${contentType} <- ${body.replace(/\s+/g, ' ').slice(0, 160)}`);
     }
 
     const raw = (await response.json()) as RawServersJson;

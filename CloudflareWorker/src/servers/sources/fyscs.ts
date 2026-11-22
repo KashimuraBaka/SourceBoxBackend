@@ -40,11 +40,7 @@ export class FyscsSource extends ServerSourceBase {
       signal,
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const text = await response.text();
+    const text = await this.readText(response);
 
     // 挑战页也是 200，提前拦下并给出可诊断的信息，避免后面只报“不是 JSON”。
     if (!text.trimStart().startsWith('{')) {
