@@ -9,7 +9,7 @@ import type { Env, NormalizedServers, RemoteFile } from '../types';
  */
 export class ServersPublisher {
   private static readonly FILE = 'Servers.json';
-  private static readonly COMMIT_MESSAGE = 'chore(servers): 自动同步四社区服务器列表';
+  private static readonly COMMIT_MESSAGE = 'chore(servers): 自动同步社区服务器列表';
   private static readonly API_BASE = 'https://api.github.com';
 
   constructor(private readonly env: Env) {}
